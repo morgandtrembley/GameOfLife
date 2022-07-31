@@ -125,7 +125,7 @@ void DrawImage(const umap& board, const image img, const std::string tag) {
 			DrawCell(newImg, cell.first);
 		}
 	}
-	boost::gil::write_view("img" + tag + ".bmp", view(newImg), boost::gil::bmp_tag());
+	boost::gil::write_view("images/img" + tag + ".bmp", view(newImg), boost::gil::bmp_tag());
 }
 
 void GenerateBaseImage(image& img) {

@@ -1,3 +1,4 @@
+#pragma warning(disable : 4996)
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -6,9 +7,8 @@
 #include <chrono>
 #include <boost/functional/hash/hash.hpp>	// pair hashing
 #include <boost/gil.hpp>					// image support
-
-// Edit Number of Generations Here
-int generations = 10;
+#include <boost/gil/io/io.hpp>				// image support
+#include <boost/gil/extension/io/bmp.hpp>	// bmp write support
 
 #define BORN 1
 #define DIED -1
@@ -17,6 +17,29 @@ struct cellStruct;
 typedef std::pair<int64_t, int64_t> pair;
 typedef std::unordered_set<pair, boost::hash<pair>> uset;
 typedef std::unordered_map<pair, cellStruct, boost::hash<pair>> umap;
+typedef boost::gil::rgb8_image_t image;
+typedef boost::gil::rgb8_pixel_t color;
+
+color darkGrey(10, 10, 10);
+color medGrey(25, 25, 25);
+color lightGrey(50, 50, 50);
+color green(0, 150, 0);
+color red(100, 0, 0);
+
+// Edit Number of Generations Here
+int generations = 10;
+
+// Edit Image Parameters Here
+int cellSize = 5;	// pixels
+// image size in # of cells must be odd
+int imgSizeX = 55;
+int imgSizeY = 55;
+// image center coords
+pair imgCenter = pair(0, 0);
+
+
+
+
 
 struct cellStruct {
 	bool state = false;
@@ -85,6 +108,44 @@ void CalculateNextGeneration(umap& board, uset& changes) {
 	changeQ.clear();
 }
 
+void DrawCell(image& img, pair coords) {
+	for (int i = 0; i < cellSize - 1; i++) {
+		for (int j = 0; j < cellSize - 1; j++) {
+			view(img)[(img.height() / 2 + i - cellSize / 2 - coords.second * cellSize) * img.width() + img.height() / 2 + j - cellSize / 2 + coords.first * cellSize] = green;
+		}
+	}
+}
+
+void DrawImage(const umap& board, const image img, const std::string tag) {
+	image newImg = img;
+
+	for (auto& cell:board) {
+		// if cell is in image range (center +- imgsize/2)
+		if (cell.second.state) {
+			DrawCell(newImg, cell.first);
+		}
+	}
+	boost::gil::write_view("img" + tag + ".bmp", view(newImg), boost::gil::bmp_tag());
+}
+
+void GenerateBaseImage(image& img) {
+	fill_pixels(view(img), darkGrey);
+	for (int x = 0; x < img.height(); x++) {
+		for (int y = 0; y < img.width(); y++) {
+			// gridlines
+			if (x % cellSize == 0 && y % cellSize == 0) {
+				view(img)[x * img.width() + y] = lightGrey;
+			}
+			// centerline
+			// if x - center.x is within borders draw x 0
+			// if y - center.y is within borders draw y 0
+			if (x == (int)img.height() / 2 || y == (int)img.width() / 2) {
+				view(img)[x * img.width() + y] = red;
+			}
+		}
+	}
+}
+
 void ReadTestInput(umap& board, uset& changes) {
 	pair coords;
 	std::fstream testFile;
@@ -117,14 +178,19 @@ int main() {
 	uset changes;
 	umap board;
 
+	image img(imgSizeX * cellSize + 1, imgSizeY * cellSize + 1);
+	GenerateBaseImage(img);
+
 	ReadTestInput(board, changes);
 
 	std::chrono::time_point<std::chrono::system_clock> start, end;
 	start = std::chrono::system_clock::now();
 
 	for (int i = 0; i < generations; ++i) {
+		DrawImage(board, img, std::to_string(i));
 		CalculateNextGeneration(board, changes);
 	}
+	DrawImage(board, img, "Final");
 
 	end = std::chrono::system_clock::now();
 	std::chrono::duration<double> runtime = end - start;

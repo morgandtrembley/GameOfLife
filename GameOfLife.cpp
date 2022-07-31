@@ -4,6 +4,8 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <chrono>
+#include <boost/functional/hash/hash.hpp>	// pair hashing
+#include <boost/gil.hpp>					// image support
 
 // Edit Number of Generations Here
 int generations = 10;
@@ -12,53 +14,53 @@ int generations = 10;
 #define DIED -1
 
 struct cellStruct;
-struct HashCoords;
 typedef std::pair<int64_t, int64_t> pair;
-typedef std::unordered_set<pair, HashCoords> uset;
-typedef std::unordered_map<pair, cellStruct, HashCoords> umap;
+typedef std::unordered_set<pair, boost::hash<pair>> uset;
+typedef std::unordered_map<pair, cellStruct, boost::hash<pair>> umap;
 
 struct cellStruct {
 	bool state = false;
 	int neighbors = 0;
 };
 
-// REPLACE !!!!!!!!!!!!!!
-struct HashCoords {
-	template <typename T, typename U> std::size_t operator()(const std::pair<T, U>& pair) const {
-		return std::hash<T>()(pair.first) ^ std::hash<U>()(pair.second);
+bool GameRules(const cellStruct& cell) {
+	const bool ruleA = !cell.state && cell.neighbors == 3;
+	const bool ruleB = cell.state && (cell.neighbors < 2 || cell.neighbors > 3);
+
+	if (ruleA || ruleB) {
+		return true;
 	}
-};
+	return false;
+}
 
-void ProbeNeighbors(umap& board, uset& changes, const pair& coords, const int state) {
-	int64_t left, up, right, down;
+// wrap around coordinate system
+void GetCoordinates(int64_t *cols, int64_t *rows, const pair& coords) {
+	// left|center|right
+	cols[0] = (coords.first > INT64_MIN) ? coords.first - 1 : INT64_MAX;
+	cols[1] = coords.first;
+	cols[2] = (coords.first < INT64_MAX) ? coords.first + 1 : INT64_MIN;
 
-	// wrap around coords
-	left = (coords.first > INT64_MIN) ? coords.first - 1 : INT64_MAX;
-	up = (coords.second < INT64_MAX) ? coords.second + 1 : INT64_MIN;
-	right = (coords.first < INT64_MAX) ? coords.first + 1 : INT64_MIN;
-	down = (coords.second > INT64_MIN) ? coords.second - 1 : INT64_MAX;
+	// up|center|down
+	rows[0] = (coords.second < INT64_MAX) ? coords.second + 1 : INT64_MIN;
+	rows[1] = coords.second;
+	rows[2] = (coords.second > INT64_MIN) ? coords.second - 1 : INT64_MAX;
+}
 
-	// upper row
-	board[pair(left, up)].neighbors += state,
-		changes.insert(pair(left, up));
-	board[pair(coords.first, up)].neighbors += state,
-		changes.insert(pair(coords.first, up));
-	board[pair(right, up)].neighbors += state,
-		changes.insert(pair(right, up));
+void ProbeNeighbors(umap& board, uset& changes, const pair& coords, const int stateChange) {
+	int64_t cols[3], rows[3];
 
-	// middle row
-	board[pair(left, coords.second)].neighbors += state,
-		changes.insert(pair(left, coords.second));
-	board[pair(right, coords.second)].neighbors += state,
-		changes.insert(pair(right, coords.second));
+	GetCoordinates(cols, rows, coords);
 
-	// lower row
-	board[pair(left, down)].neighbors += state,
-		changes.insert(pair(left, down));
-	board[pair(coords.first, down)].neighbors += state,
-		changes.insert(pair(coords.first, down));
-	board[pair(right, down)].neighbors += state,
-		changes.insert(pair(right, down));
+	for (const int64_t x : cols) {
+		for (const int64_t y : rows) {
+			// skip central cell
+			if (!(x == coords.first && y == coords.second)) {
+				const pair& localCoords = pair(x, y);
+				board[localCoords].neighbors += stateChange;
+				changes.insert(localCoords);
+			}
+		}
+	}
 }
 
 void CalculateNextGeneration(umap& board, uset& changes) {
@@ -66,11 +68,7 @@ void CalculateNextGeneration(umap& board, uset& changes) {
 
 	// evaluate current board state
 	for (const pair& coords : changes) {
-		const cellStruct& cell = board[coords];
-
-		bool condition1 = !cell.state && cell.neighbors == 3;
-		bool condition2 = cell.state && (cell.neighbors < 2 || cell.neighbors > 3);
-		if (condition1 || condition2) {
+		if (GameRules(board[coords])) {
 			changeQ.push_back(coords);
 		}
 	}
@@ -102,7 +100,7 @@ void ReadTestInput(umap& board, uset& changes) {
 	testFile.close();
 }
 
-void SaveResults(const umap& board) {
+void WriteResults(const umap& board) {
 	std::fstream results;
 
 	results.open("results.txt", std::ios::out);
@@ -132,7 +130,7 @@ int main() {
 	std::chrono::duration<double> runtime = end - start;
 	std::cout << "Runtime: " << runtime.count() << " seconds\n";
 
-	SaveResults(board);
+	WriteResults(board);
 
 	return 0;
 }

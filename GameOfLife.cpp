@@ -20,6 +20,27 @@ typedef std::unordered_map<pair, cellStruct, boost::hash<pair>> umap;
 typedef boost::gil::rgb8_image_t image;
 typedef boost::gil::rgb8_pixel_t color;
 
+struct cellStruct {
+	bool state = false;
+	int neighbors = 0;
+};
+
+// ---------- Edit Number of Generations Here
+const int generations = 10;
+
+
+
+// Edit Image Parameters Here
+
+const int cellWidth = 6;	// in pixels (even # for best results)
+
+const int imgSizeX = 55;	// in cells (odd for best results)
+const int imgSizeY = 55;	// in cells (odd for best results)
+
+// image center coords: image CAN NOT EXCEED int64 Bounds! imgCenter will be moved if out of range
+pair imgCenter = pair(-15,4);
+
+// image Colors
 color darkGrey(10, 10, 10);
 color medGrey(25, 25, 25);
 color lightGrey(50, 50, 50);
@@ -27,22 +48,7 @@ color green(0, 100, 0);
 color red(150, 0, 0);
 color blue(0, 0, 100);
 
-// Edit Number of Generations Here
-const int generations = 10;
-
-// Edit Image Parameters Here
-const int cellSize = 6;	// pixels (Should be even)
-// image size in # of cells. Should be odd
-const int imgSizeX = 105;
-const int imgSizeY = 55;
-// image center coords
-// Image CAN NOT EXCEED int64 Bounds! imgCenter will be changed iff out of range
-pair imgCenter = pair(10,-2);
-
-struct cellStruct {
-	bool state = false;
-	int neighbors = 0;
-};
+// ---------- Game Simulation ----------
 
 bool GameRules(const cellStruct& cell) {
 	const bool ruleA = !cell.state && cell.neighbors == 3;
@@ -107,10 +113,16 @@ void CalculateNextGeneration(umap& board, uset& changes) {
 	}
 }
 
+// ---------- Image Processing ----------
+
 void DrawCell(image& img, pair coords) {
-	for (int i = 0; i < cellSize - 1; i++) {
-		for (int j = 0; j < cellSize - 1; j++) {
-			view(img)[(img.height() / 2)*img.width() + img.width()/2 + imgCenter.second*cellSize*img.width() - imgCenter.first*cellSize - cellSize/2*img.width() - cellSize / 2 + img.width() + 1 + i*img.width() + j - coords.second*cellSize*img.width() + coords.first * cellSize] = red;
+	int imageCenter = (img.height() / 2) * img.width() + img.width() / 2;
+	int centerShift = (imgCenter.second * img.width() - imgCenter.first) * cellWidth;
+	int coordinateShift = (coords.first - coords.second * img.width()) * cellWidth;
+	for (int i = 0; i < cellWidth - 1; i++) {
+		for (int j = 0; j < cellWidth - 1; j++) {			
+			int cellShift = (1 + i - cellWidth / 2) * img.width() + j - cellWidth / 2 + 1;
+			view(img)[imageCenter + centerShift + coordinateShift + cellShift] = red;
 		}
 	}
 }
@@ -125,7 +137,6 @@ bool InRange(const pair& coords, const pair& minRange, const pair& maxRange) {
 
 void DrawImage(const umap& board, const image img, const pair& minRange, const pair& maxRange, const std::string tag) {
 	image newImg = img;
-
 	for (auto& cell:board) {
 		if (cell.second.state) {
 			if (InRange(cell.first, minRange, maxRange)) {
@@ -136,64 +147,79 @@ void DrawImage(const umap& board, const image img, const pair& minRange, const p
 	boost::gil::write_view("images/img" + tag + ".bmp", view(newImg), boost::gil::bmp_tag());
 }
 
-void GenerateBaseImage(image& img, const pair& minRange, const pair& maxRange) {
-	fill_pixels(view(img), darkGrey);
-	// line x = 0
-	bool drawXZero = (minRange.first < 0 && maxRange.first > 0) ? true : false;
-	// line y = 0
-	bool drawYZero = (minRange.second < 0 && maxRange.second > 0) ? true : false;
-	
-	bool lowerBound = (minRange.second == INT64_MIN) ? true : false;
-	bool upperBound = (maxRange.second == INT64_MAX) ? true : false;
-	bool leftBound = (minRange.first == INT64_MIN) ? true : false;
-	bool rightBound = (maxRange.first == INT64_MAX) ? true : false;
-
-	for (int x = 0; x < img.height(); x++) {
+void DrawBounds(image& img, const pair& minRange, const pair& maxRange, const int range) {
+	// lower boundary
+	if (minRange.second == INT64_MIN) {
+		for (int y = img.height() * (img.width() - 1); y < img.height() * img.width(); y++) {
+			view(img)[y] = blue;
+		}
+	}
+	// upper boundary
+	if (maxRange.second == INT64_MAX) {
 		for (int y = 0; y < img.width(); y++) {
-			// gridlines
-			if (x % cellSize == 0 && y % cellSize == 0) {
-				view(img)[x * img.width() + y] = lightGrey;
-			}
-			else if (x % cellSize == 0 || y % cellSize == 0) {
-				view(img)[x * img.width() + y] = medGrey;
-			}
-			
-			// center lines
-			if (drawXZero) {
-				if (x == img.height() / 2 + imgCenter.second*cellSize) {
-					view(img)[x * img.width() + y] = green;
-				}
-			}
-			if (drawYZero) {
-				if (y == img.width() / 2 - imgCenter.first * cellSize) {
-					view(img)[x * img.width() + y] = green;
-				}
-			}
+			view(img)[y] = blue;
+		}
+	}
+	// left boundary
+	if (minRange.first == INT64_MIN) {
+		for (int x = 0; x < range; x += img.width()) {
+			view(img)[x] = blue;
+		}
+	}
+	// right boundary
+	if (maxRange.first == INT64_MAX) {
+		for (int x = img.width() - 1; x < range; x += img.width()) {
+			view(img)[x] = blue;
+		}
+	}
+}
 
-			// bounds
-			if (lowerBound) {
-				if (x == img.height() - 1) {
-					view(img)[x * img.width() + y] = blue;
-				}
+void DrawZeroes(image& img, const pair& minRange, const pair& maxRange, const int range) {
+	// line x = 0
+	if (minRange.first < 0 && maxRange.first > 0) {
+		int offset = img.width() / 2 - imgCenter.first * cellWidth;
+		for (int x = offset; x < range; x += img.width()) {
+			view(img)[x] = green;
+		}
+	}
+	// line y = 0
+	if (minRange.second < 0 && maxRange.second > 0) {
+		int offset = (img.height() / 2 + imgCenter.second * cellWidth) * img.width();
+		for (int y = 0; y < img.width(); y++) {
+			view(img)[offset + y] = green;
+		}
+	}
+}
+
+void DrawGridlines(image& img, const int range) {
+	// Vertical
+	for (int x = 0; x < range; x += img.width()) {
+		for (int y = 0; y < img.width(); y += cellWidth) {
+			view(img)[x + y] = medGrey;
+		}
+	}
+	// Horozontal
+	int stride = cellWidth * img.width();
+	for (int x = 0; x < range; x += stride) {
+		for (int y = 0; y < img.width(); y++) {
+			// if overlapping make cell brighter
+			if (view(img)[x + y] == medGrey) {
+				view(img)[x + y] = lightGrey;
 			}
-			else if (upperBound) {
-				if (x == 0) {
-					view(img)[x * img.width() + y] = blue;
-				}
-			}
-			if (leftBound) {
-				if (y == 0) {
-					view(img)[x * img.width() + y] = blue;
-				}
-			}
-			else if (rightBound) {
-				if (y == img.width() - 1) {
-					view(img)[x * img.width() + y] = blue;
-				}
+			else {
+				view(img)[x + y] = medGrey;
 			}
 		}
 	}
-	
+}
+
+void GenerateBaseImage(image& img, const pair& minRange, const pair& maxRange) {
+	int range = img.height() * img.width();
+
+	fill_pixels(view(img), darkGrey);
+	DrawGridlines(img, range);
+	DrawZeroes(img, minRange, maxRange, range);
+	DrawBounds(img, minRange, maxRange, range);
 }
 
 void GenerateCoordinateRange(pair& minRange, pair& maxRange) {
@@ -258,7 +284,7 @@ int main() {
 	pair minRange, MaxRange;
 
 
-	image img(imgSizeX * cellSize + 1, imgSizeY * cellSize + 1);
+	image img(imgSizeX * cellWidth + 1, imgSizeY * cellWidth + 1);
 	ValidateImageCenter();
 	GenerateCoordinateRange(minRange,MaxRange);
 	GenerateBaseImage(img, minRange, MaxRange);

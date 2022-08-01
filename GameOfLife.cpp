@@ -23,8 +23,9 @@ typedef boost::gil::rgb8_pixel_t color;
 color darkGrey(10, 10, 10);
 color medGrey(25, 25, 25);
 color lightGrey(50, 50, 50);
-color green(0, 150, 0);
-color red(100, 0, 0);
+color green(0, 10, 0);
+color red(150, 0, 0);
+color blue(0, 0, 100);
 
 // Edit Number of Generations Here
 int generations = 10;
@@ -57,30 +58,36 @@ bool GameRules(const cellStruct& cell) {
 }
 
 // wrap around coordinate system
-void GetCoordinates(int64_t *cols, int64_t *rows, const pair& coords) {
-	// left|center|right
-	cols[0] = (coords.first > INT64_MIN) ? coords.first - 1 : INT64_MAX;
-	cols[1] = coords.first;
+void GetNeighborCoordinates(int64_t *cols, int64_t *rows, const pair& coords) {
+	// center|left|right
+	cols[0] = coords.first;
+	cols[1] = (coords.first > INT64_MIN) ? coords.first - 1 : INT64_MAX;
 	cols[2] = (coords.first < INT64_MAX) ? coords.first + 1 : INT64_MIN;
 
-	// up|center|down
-	rows[0] = (coords.second < INT64_MAX) ? coords.second + 1 : INT64_MIN;
-	rows[1] = coords.second;
+	// center|up|down
+	rows[0] = coords.second;
+	rows[1] = (coords.second < INT64_MAX) ? coords.second + 1 : INT64_MIN;
 	rows[2] = (coords.second > INT64_MIN) ? coords.second - 1 : INT64_MAX;
 }
 
-void ProbeNeighbors(umap& board, uset& changes, const pair& coords, const int stateChange) {
+void ProcessCell(umap& board, uset& changes, const pair& coords) {
+	int neighborModifier;
 	int64_t cols[3], rows[3];
 
-	GetCoordinates(cols, rows, coords);
+	GetNeighborCoordinates(cols, rows, coords);
 
-	for (const int64_t x : cols) {
-		for (const int64_t y : rows) {
-			// skip central cell
-			if (!(x == coords.first && y == coords.second)) {
-				const pair& localCoords = pair(x, y);
-				board[localCoords].neighbors += stateChange;
-				changes.insert(localCoords);
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			const pair& localCoords = pair(cols[i], rows[j]);
+			changes.insert(localCoords);
+
+			cellStruct& cell = board[localCoords];
+			if (!(i + j)) {
+				cell.state = !cell.state;
+				neighborModifier = (cell.state) ? BORN : DIED;
+			}
+			else {
+				cell.neighbors += neighborModifier;
 			}
 		}
 	}
@@ -99,19 +106,14 @@ void CalculateNextGeneration(umap& board, uset& changes) {
 
 	// apply and record changes
 	for (const pair& coords : changeQ) {
-		cellStruct& cell = board[coords];
-
-		cell.state = !cell.state;
-		changes.insert(coords);
-		ProbeNeighbors(board, changes, coords, (cell.state) ? BORN : DIED);
+		ProcessCell(board, changes, coords);
 	}
-	changeQ.clear();
 }
 
 void DrawCell(image& img, pair coords) {
 	for (int i = 0; i < cellSize - 1; i++) {
 		for (int j = 0; j < cellSize - 1; j++) {
-			view(img)[(img.height() / 2 + i - cellSize / 2 - coords.second * cellSize) * img.width() + img.height() / 2 + j - cellSize / 2 + coords.first * cellSize] = green;
+			view(img)[(img.height() / 2 + i - cellSize / 2 - coords.second * cellSize) * img.width() + img.height() / 2 + j - cellSize / 2 + coords.first * cellSize] = red;
 		}
 	}
 }
@@ -140,7 +142,7 @@ void GenerateBaseImage(image& img) {
 			// if x - center.x is within borders draw x 0
 			// if y - center.y is within borders draw y 0
 			if (x == (int)img.height() / 2 || y == (int)img.width() / 2) {
-				view(img)[x * img.width() + y] = red;
+				view(img)[x * img.width() + y] = green;
 			}
 		}
 	}
@@ -153,9 +155,7 @@ void ReadTestInput(umap& board, uset& changes) {
 	testFile.open("testFile.txt", std::ios::in);
 	while (testFile >> coords.first >> coords.second) {
 		if (!board[coords].state) {
-			board[coords].state = true;
-			changes.insert(coords);
-			ProbeNeighbors(board, changes, coords, BORN);
+			ProcessCell(board, changes, coords);
 		}
 	}
 	testFile.close();

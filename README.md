@@ -1,5 +1,5 @@
 Conway's Game of life with a 64-bit integer playing field.
-This program requires Boost libraries for hashing and image production!
+This program requires Boost libraries for hashing and image production! (https://www.boost.org/)
 
 This version of Game of Life uses a wrap-around coordinate system (similar to pac-man) 
 so life can teleport from one side of the field to the other in a single generation.

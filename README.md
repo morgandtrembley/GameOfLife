@@ -9,4 +9,4 @@ you can enable image creation for every generation in the "GameOfLife.cpp" file.
 
 You can customize the image parameters as you like but following the comments in the file will produce the best quality images.
 
-There are other editable parameters in the GameOfLife.cpp file.
+There are other editable parameters in the "GameOfLife.cpp" file.

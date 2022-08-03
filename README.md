@@ -12,4 +12,4 @@ You can customize the image parameters as you like but following the comments in
 There are other editable parameters in the "GameOfLife.cpp" file.
 
 Inputs should take the form "(x, y)" and anything else will cause the simulation to start running.
-Results are printed directly to console and stored in "results.txt". Both follow Life 1.06 formatting instructions. (https://conwaylife.com/wiki/Life_1.06)
+Results are printed directly to console and stored in "results.txt." Both follow Life 1.06 formatting instructions. (https://conwaylife.com/wiki/Life_1.06)

@@ -11,12 +11,5 @@ You can customize the image parameters as you like but following the comments in
 
 There are other editable parameters in the "GameOfLife.cpp" file.
 
+Inputs should take the form "(x, y)" and anything else will cause the simulation to start running.
 Results are printed directly to console and stored in "results.txt" and follow Life 1.06 formatting instructions. (https://conwaylife.com/wiki/Life_1.06)
-
-User inputs should follow the format: "(x, y)" if an input does not follow this format the program will start evaluating the simulation state immediately.
-sample input:
-(2, 3)
-(2, 4)
-(1, 1)
-(-12, 9)
--
